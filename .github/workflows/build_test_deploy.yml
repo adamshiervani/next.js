@@ -9,7 +9,7 @@ name: Build, test, and deploy
 jobs:
   check-examples:
     name: Check examples
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     steps:
       - uses: actions/checkout@v2
       - name: Install moreutils
@@ -18,7 +18,7 @@ jobs:
         run: ./scripts/check-examples.sh
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     env:
       NEXT_TELEMETRY_DISABLED: 1
       # we build a dev binary for use in CI so skip downloading
@@ -71,7 +71,7 @@ jobs:
           key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs: build
     steps:
       - name: Setup node
@@ -89,7 +89,7 @@ jobs:
       - run: yarn lint
 
   rust-check:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs: build
     steps:
       - name: Install
@@ -130,7 +130,7 @@ jobs:
 
   checkPrecompiled:
     name: Check Pre-compiled
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs: build
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -173,7 +173,7 @@ jobs:
 
   testUnit:
     name: Test Unit
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs: [build, build-native-dev]
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -203,7 +203,7 @@ jobs:
 
   testDev:
     name: Test Development
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs: [build, build-native-dev]
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -257,7 +257,7 @@ jobs:
 
   testProd:
     name: Test Production
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs: [build, build-native-dev]
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -389,7 +389,7 @@ jobs:
 
   testsPass:
     name: thank you, next
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs:
       [
         lint,
@@ -406,7 +406,7 @@ jobs:
 
   testFirefox:
     name: Test Firefox (production)
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs: [build, build-native-dev]
     env:
       BROWSER_NAME: 'firefox'
@@ -522,7 +522,7 @@ jobs:
 
   testFirefoxNode17:
     name: Test Firefox Node.js 17
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     needs: [build, testFirefox, build-native-dev]
     env:
       BROWSER_NAME: 'firefox'
@@ -622,7 +622,7 @@ jobs:
 
   build-native-dev:
     name: Build dev binary for tests
-    runs-on: ubuntu-18.04
+    runs-on: buildjet-8vcpu-ubuntu-1804
     steps:
       # https://github.com/actions/virtual-environments/issues/1187
       - name: tune linux network
@@ -714,7 +714,7 @@ jobs:
 
   test-native:
     name: Unit Test Native Code
-    runs-on: ubuntu-18.04
+    runs-on: buildjet-8vcpu-ubuntu-1804
 
     steps:
       - uses: actions/checkout@v2
@@ -733,7 +733,7 @@ jobs:
 
   test-wasm:
     name: Test the wasm build
-    runs-on: ubuntu-18.04
+    runs-on: buildjet-8vcpu-ubuntu-1804
     needs: [build, build-native-dev, build-wasm-dev]
 
     steps:
@@ -798,7 +798,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target i686-pc-windows-msvc
             target: 'i686-pc-windows-msvc'
-          - host: ubuntu-latest
+          - host: buildjet-8vcpu-ubuntu-2004
             target: 'x86_64-unknown-linux-gnu'
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine-zig
             # Node.js in Baidu need to compatible with `GLIBC_2.12`
@@ -810,7 +810,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28 &&
               turbo run build-native --cache-dir=".turbo" -- --release --target x86_64-unknown-linux-gnu --zig --zig-abi-suffix 2.12 &&
               llvm-strip -x packages/next-swc/native/next-swc.*.node
-          - host: ubuntu-latest
+          - host: buildjet-8vcpu-ubuntu-2004
             target: 'x86_64-unknown-linux-musl'
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: >-
@@ -832,7 +832,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target aarch64-apple-darwin
               strip -x packages/next-swc/native/next-swc.*.node
-          - host: ubuntu-latest
+          - host: buildjet-8vcpu-ubuntu-2004
             target: 'aarch64-unknown-linux-gnu'
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine-zig
             build: >-
@@ -843,7 +843,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28 &&
               turbo run build-native --cache-dir=".turbo" -- --release --target aarch64-unknown-linux-gnu --zig --zig-abi-suffix 2.12 &&
               llvm-strip -x packages/next-swc/native/next-swc.*.node
-          - host: ubuntu-18.04
+          - host: buildjet-8vcpu-ubuntu-1804
             target: 'armv7-unknown-linux-gnueabihf'
             setup: |
               sudo apt-get update
@@ -852,7 +852,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target armv7-unknown-linux-gnueabihf
               arm-linux-gnueabihf-strip packages/next-swc/native/next-swc.*.node
-          - host: ubuntu-latest
+          - host: buildjet-8vcpu-ubuntu-2004
             target: aarch64-linux-android
             build: |
               export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
@@ -862,7 +862,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target aarch64-linux-android
               ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip packages/next-swc/native/next-swc.*.node
-          - host: ubuntu-latest
+          - host: buildjet-8vcpu-ubuntu-2004
             target: armv7-linux-androideabi
             build: |
               export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang"
@@ -872,7 +872,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target armv7-linux-androideabi
               ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/arm-linux-androideabi-strip packages/next-swc/native/next-swc.*.node
-          - host: ubuntu-latest
+          - host: buildjet-8vcpu-ubuntu-2004
             target: 'aarch64-unknown-linux-musl'
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: >-
@@ -900,6 +900,9 @@ jobs:
       - name: tune linux network
         run: sudo ethtool -K eth0 tx off rx off
         if: ${{ matrix.settings.host == 'ubuntu-latest' }}
+      - name: tune linux network
+        run: sudo ethtool -K eth0 tx off rx off
+        if: ${{ matrix.settings.host == 'buildjet-8vcpu-ubuntu-2004' }}
       - name: tune windows network
         run: Disable-NetAdapterChecksumOffload -Name * -TcpIPv4 -UdpIPv4 -TcpIPv6 -UdpIPv6
         if: ${{ matrix.settings.host == 'windows-latest' }}
@@ -990,7 +993,7 @@ jobs:
     strategy:
       matrix:
         target: [web, nodejs]
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     steps:
       - uses: actions/cache@v2
         id: restore-build
@@ -1041,7 +1044,7 @@ jobs:
 
   build-wasm-dev:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2004
     steps:
       - uses: actions/cache@v2
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
