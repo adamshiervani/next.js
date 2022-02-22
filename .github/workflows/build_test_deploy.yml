@@ -949,7 +949,7 @@ jobs:
           retention-days: 2
           path: |
             test/traces
-testSafari:
+  testSafari:
     name: Test Safari (production)
     runs-on: ubuntu-latest
     needs: [build, build-native-dev]
