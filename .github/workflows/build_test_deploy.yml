@@ -622,7 +622,7 @@ jobs:
 
   build-native-dev:
     name: Build dev binary for tests
-    runs-on: buildjet-8vcpu-ubuntu-1804
+    runs-on: buildjet-2vcpu-ubuntu-1804
     steps:
       # https://github.com/actions/virtual-environments/issues/1187
       - name: tune linux network
@@ -714,7 +714,7 @@ jobs:
 
   test-native:
     name: Unit Test Native Code
-    runs-on: buildjet-8vcpu-ubuntu-1804
+    runs-on: buildjet-2vcpu-ubuntu-1804
 
     steps:
       - uses: actions/checkout@v2
@@ -733,7 +733,7 @@ jobs:
 
   test-wasm:
     name: Test the wasm build
-    runs-on: buildjet-8vcpu-ubuntu-1804
+    runs-on: buildjet-2vcpu-ubuntu-1804
     needs: [build, build-native-dev, build-wasm-dev]
 
     steps:
@@ -843,7 +843,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28 &&
               turbo run build-native --cache-dir=".turbo" -- --release --target aarch64-unknown-linux-gnu --zig --zig-abi-suffix 2.12 &&
               llvm-strip -x packages/next-swc/native/next-swc.*.node
-          - host: buildjet-8vcpu-ubuntu-1804
+          - host: buildjet-2vcpu-ubuntu-1804
             target: 'armv7-unknown-linux-gnueabihf'
             setup: |
               sudo apt-get update
