@@ -9,7 +9,7 @@ name: Build, test, and deploy
 jobs:
   check-examples:
     name: Check examples
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     steps:
       - uses: actions/checkout@v2
       - name: Install moreutils
@@ -18,7 +18,7 @@ jobs:
         run: ./scripts/check-examples.sh
 
   build:
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     env:
       NEXT_TELEMETRY_DISABLED: 1
       # we build a dev binary for use in CI so skip downloading
@@ -44,7 +44,7 @@ jobs:
         run: sudo ethtool -K eth0 tx off rx off
 
       - run: yarn install --frozen-lockfile --check-files
-      - run: node run-tests.js --timings --write-timings -g 1/1
+      - run: node run-tests.js -c 4 --timings --write-timings -g 1/1
       - run: node ./scripts/fetch-tags.mjs ${{ github.sha }}
 
       - name: Check docs only change
@@ -71,7 +71,7 @@ jobs:
           key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
 
   lint:
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs: build
     steps:
       - name: Setup node
@@ -89,7 +89,7 @@ jobs:
       - run: yarn lint
 
   rust-check:
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs: build
     steps:
       - name: Install
@@ -130,7 +130,7 @@ jobs:
 
   checkPrecompiled:
     name: Check Pre-compiled
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs: build
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -173,7 +173,7 @@ jobs:
 
   testUnit:
     name: Test Unit
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs: [build, build-native-dev]
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -198,12 +198,12 @@ jobs:
           name: next-swc-dev-binary
           path: packages/next-swc/native
 
-      - run: node run-tests.js --type unit
+      - run: node run-tests.js -c 4 --type unit
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
   testDev:
     name: Test Development
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs: [build, build-native-dev]
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -237,11 +237,11 @@ jobs:
       - run: npm i -g playwright-chromium@1.14.1 && npx playwright install-deps
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
-      - run: node run-tests.js --type development
+      - run: node run-tests.js -c 4 --type development
         name: Run test/development
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
-      - run: NEXT_TEST_MODE=dev node run-tests.js --type e2e
+      - run: NEXT_TEST_MODE=dev node run-tests.js -c 4 --type e2e
         name: Run test/e2e (dev)
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
@@ -257,7 +257,7 @@ jobs:
 
   testProd:
     name: Test Production
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs: [build, build-native-dev]
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -291,67 +291,13 @@ jobs:
       - run: npm i -g playwright-chromium@1.14.1 && npx playwright install-deps
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
-      - run: node run-tests.js --type production
+      - run: node run-tests.js -c 4 --type production
         name: Run test/production
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
-      - run: NEXT_TEST_MODE=start node run-tests.js --type e2e
+      - run: NEXT_TEST_MODE=start node run-tests.js -c 4 --type e2e
         name: Run test/e2e (production)
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-
-  testIntegration:
-    name: Test Integration
-    runs-on: ubuntu-latest
-    needs: [build, build-native-dev]
-    env:
-      NEXT_TELEMETRY_DISABLED: 1
-      NEXT_TEST_JOB: 1
-      TEST_TIMINGS_TOKEN: ${{ secrets.TEST_TIMINGS_TOKEN }}
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [1, 2, 3, 4, 5, 6]
-    steps:
-      - name: Setup node
-        uses: actions/setup-node@v2
-        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
-        with:
-          node-version: 14
-
-      - run: echo ${{needs.build.outputs.docsChange}}
-
-      # https://github.com/actions/virtual-environments/issues/1187
-      - name: tune linux network
-        run: sudo ethtool -K eth0 tx off rx off
-
-      - uses: actions/cache@v2
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-        id: restore-build
-        with:
-          path: ./*
-          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
-
-      - uses: actions/download-artifact@v2
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-        with:
-          name: next-swc-dev-binary
-          path: packages/next-swc/native
-
-      - run: npm i -g playwright-chromium@1.14.1 && npx playwright install-deps
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-
-      - run: xvfb-run node run-tests.js --timings -g ${{ matrix.group }}/6
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-
-      - name: Upload test trace
-        if: always()
-        uses: actions/upload-artifact@v2
-        with:
-          name: test-trace
-          if-no-files-found: ignore
-          retention-days: 2
-          path: |
-            test/traces
 
   testElectron:
     name: Test Electron
@@ -384,12 +330,12 @@ jobs:
       - run: cd test/integration/with-electron/app && yarn
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
-      - run: xvfb-run node run-tests.js test/integration/with-electron/test/index.test.js
+      - run: xvfb-run node run-tests.js -c 4 test/integration/with-electron/test/index.test.js
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
   testsPass:
     name: thank you, next
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs:
       [
         lint,
@@ -406,7 +352,7 @@ jobs:
 
   testFirefox:
     name: Test Firefox (production)
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs: [build, build-native-dev]
     env:
       BROWSER_NAME: 'firefox'
@@ -431,98 +377,12 @@ jobs:
           path: packages/next-swc/native
       - run: npx playwright install-deps && npx playwright install firefox
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-      - run: node run-tests.js test/integration/production/test/index.test.js
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-
-  testSafari:
-    name: Test Safari (production)
-    runs-on: ubuntu-latest
-    needs: [build, build-native-dev]
-    env:
-      BROWSERSTACK: true
-      BROWSER_NAME: 'safari'
-      NEXT_TELEMETRY_DISABLED: 1
-      NEXT_TEST_MODE: 'start'
-      SKIP_LOCAL_SELENIUM_SERVER: true
-      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
-      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-    steps:
-      - name: Setup node
-        uses: actions/setup-node@v2
-        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
-        with:
-          node-version: 14
-
-      # https://github.com/actions/virtual-environments/issues/1187
-      - name: tune linux network
-        run: sudo ethtool -K eth0 tx off rx off
-
-      - uses: actions/cache@v2
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-        id: restore-build
-        with:
-          path: ./*
-          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
-
-      - uses: actions/download-artifact@v2
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-        with:
-          name: next-swc-dev-binary
-          path: packages/next-swc/native
-
-      # TODO: use macos runner so that we can use playwright to test against
-      # PRs instead of only running on canary?
-      - run: '[[ -z "$BROWSERSTACK_ACCESS_KEY" ]] && echo "Skipping for PR" || npm i -g browserstack-local@1.4.0'
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-
-      - run: '[[ -z "$BROWSERSTACK_ACCESS_KEY" ]] && echo "Skipping for PR" || node run-tests.js -c 1 test/integration/production/test/index.test.js test/e2e/basepath.test.ts'
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-
-  testSafariOld:
-    name: Test Safari 10.1 (nav)
-    runs-on: ubuntu-latest
-    needs: [build, testSafari, build-native-dev]
-    env:
-      BROWSERSTACK: true
-      LEGACY_SAFARI: true
-      BROWSER_NAME: 'safari'
-      NEXT_TELEMETRY_DISABLED: 1
-      SKIP_LOCAL_SELENIUM_SERVER: true
-      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
-      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-    steps:
-      - name: Setup node
-        uses: actions/setup-node@v2
-        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
-        with:
-          node-version: 14
-
-      # https://github.com/actions/virtual-environments/issues/1187
-      - name: tune linux network
-        run: sudo ethtool -K eth0 tx off rx off
-
-      - uses: actions/cache@v2
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-        id: restore-build
-        with:
-          path: ./*
-          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
-
-      - uses: actions/download-artifact@v2
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-        with:
-          name: next-swc-dev-binary
-          path: packages/next-swc/native
-
-      - run: '[[ -z "$BROWSERSTACK_ACCESS_KEY" ]] && echo "Skipping for PR" || npm i -g browserstack-local@1.4.0'
-        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-
-      - run: '[[ -z "$BROWSERSTACK_ACCESS_KEY" ]] && echo "Skipping for PR" || node run-tests.js test/integration/production-nav/test/index.test.js'
+      - run: node run-tests.js -c 4 test/integration/production/test/index.test.js
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
   testFirefoxNode17:
     name: Test Firefox Node.js 17
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     needs: [build, testFirefox, build-native-dev]
     env:
       BROWSER_NAME: 'firefox'
@@ -547,82 +407,12 @@ jobs:
           path: packages/next-swc/native
       - run: npx playwright install-deps && npx playwright install firefox
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-      - run: node run-tests.js test/integration/production/test/index.test.js
+      - run: node run-tests.js -c 4 test/integration/production/test/index.test.js
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
-
-  publishRelease:
-    if: ${{ needs.build.outputs.isRelease == 'true' }}
-    name: Potentially publish release
-    runs-on: ubuntu-latest
-    needs:
-      - build
-      - build-wasm
-      - build-native
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN_ELEVATED }}
-    steps:
-      - name: Setup node
-        uses: actions/setup-node@v2
-        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
-        with:
-          node-version: 14
-
-      # https://github.com/actions/virtual-environments/issues/1187
-      - name: tune linux network
-        run: sudo ethtool -K eth0 tx off rx off
-
-      - uses: actions/cache@v2
-        id: restore-build
-        with:
-          path: ./*
-          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
-
-      - uses: actions/download-artifact@v2
-        with:
-          name: next-swc-binaries
-          path: packages/next-swc/native
-
-      - uses: actions/download-artifact@v2
-        with:
-          name: wasm-binaries
-          path: packages/next-swc/crates/wasm
-
-      - run: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-      - run: ./scripts/publish-native.js $GITHUB_REF
-      - run: ./scripts/publish-release.sh
-
-  releaseStats:
-    name: Release Stats
-    runs-on: ubuntu-latest
-    needs: [publishRelease, build-native-dev]
-    steps:
-      - name: Setup node
-        uses: actions/setup-node@v2
-        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
-        with:
-          node-version: 14
-
-      - uses: actions/cache@v2
-        id: restore-build
-        with:
-          path: ./*
-          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
-
-      - uses: actions/download-artifact@v2
-        with:
-          name: next-swc-dev-binary
-          path: packages/next-swc/native
-
-      - run: cp -r packages/next-swc/native .github/actions/next-stats-action/native
-
-      - run: ./scripts/release-stats.sh
-      - uses: ./.github/actions/next-stats-action
-        env:
-          PR_STATS_COMMENT_TOKEN: ${{ secrets.PR_STATS_COMMENT_TOKEN }}
 
   build-native-dev:
     name: Build dev binary for tests
-    runs-on: buildjet-2vcpu-ubuntu-1804
+    runs-on: buildjet-4vcpu-ubuntu-1804
     steps:
       # https://github.com/actions/virtual-environments/issues/1187
       - name: tune linux network
@@ -714,7 +504,7 @@ jobs:
 
   test-native:
     name: Unit Test Native Code
-    runs-on: buildjet-2vcpu-ubuntu-1804
+    runs-on: buildjet-4vcpu-ubuntu-1804
 
     steps:
       - uses: actions/checkout@v2
@@ -733,7 +523,7 @@ jobs:
 
   test-wasm:
     name: Test the wasm build
-    runs-on: buildjet-2vcpu-ubuntu-1804
+    runs-on: buildjet-4vcpu-ubuntu-1804
     needs: [build, build-native-dev, build-wasm-dev]
 
     steps:
@@ -773,7 +563,7 @@ jobs:
       - run: node ./scripts/setup-wasm.mjs
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
-      - run: TEST_WASM=true xvfb-run node run-tests.js test/integration/production/test/index.test.js
+      - run: TEST_WASM=true xvfb-run node run-tests.js -c 4 test/integration/production/test/index.test.js
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
 
   # Build binaries for publishing
@@ -798,7 +588,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target i686-pc-windows-msvc
             target: 'i686-pc-windows-msvc'
-          - host: buildjet-2vcpu-ubuntu-2004
+          - host: buildjet-4vcpu-ubuntu-2004
             target: 'x86_64-unknown-linux-gnu'
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine-zig
             # Node.js in Baidu need to compatible with `GLIBC_2.12`
@@ -810,7 +600,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28 &&
               turbo run build-native --cache-dir=".turbo" -- --release --target x86_64-unknown-linux-gnu --zig --zig-abi-suffix 2.12 &&
               llvm-strip -x packages/next-swc/native/next-swc.*.node
-          - host: buildjet-2vcpu-ubuntu-2004
+          - host: buildjet-4vcpu-ubuntu-2004
             target: 'x86_64-unknown-linux-musl'
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: >-
@@ -832,7 +622,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target aarch64-apple-darwin
               strip -x packages/next-swc/native/next-swc.*.node
-          - host: buildjet-2vcpu-ubuntu-2004
+          - host: buildjet-4vcpu-ubuntu-2004
             target: 'aarch64-unknown-linux-gnu'
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine-zig
             build: >-
@@ -843,7 +633,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28 &&
               turbo run build-native --cache-dir=".turbo" -- --release --target aarch64-unknown-linux-gnu --zig --zig-abi-suffix 2.12 &&
               llvm-strip -x packages/next-swc/native/next-swc.*.node
-          - host: buildjet-2vcpu-ubuntu-1804
+          - host: buildjet-4vcpu-ubuntu-1804
             target: 'armv7-unknown-linux-gnueabihf'
             setup: |
               sudo apt-get update
@@ -852,7 +642,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target armv7-unknown-linux-gnueabihf
               arm-linux-gnueabihf-strip packages/next-swc/native/next-swc.*.node
-          - host: buildjet-2vcpu-ubuntu-2004
+          - host: buildjet-4vcpu-ubuntu-2004
             target: aarch64-linux-android
             build: |
               export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
@@ -862,7 +652,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target aarch64-linux-android
               ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip packages/next-swc/native/next-swc.*.node
-          - host: buildjet-2vcpu-ubuntu-2004
+          - host: buildjet-4vcpu-ubuntu-2004
             target: armv7-linux-androideabi
             build: |
               export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang"
@@ -872,7 +662,7 @@ jobs:
               npm i -g @napi-rs/cli@2.4.4 turbo@1.0.28
               turbo run build-native --cache-dir=".turbo" -- --release --target armv7-linux-androideabi
               ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/arm-linux-androideabi-strip packages/next-swc/native/next-swc.*.node
-          - host: buildjet-2vcpu-ubuntu-2004
+          - host: buildjet-4vcpu-ubuntu-2004
             target: 'aarch64-unknown-linux-musl'
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: >-
@@ -902,7 +692,7 @@ jobs:
         if: ${{ matrix.settings.host == 'ubuntu-latest' }}
       - name: tune linux network
         run: sudo ethtool -K eth0 tx off rx off
-        if: ${{ matrix.settings.host == 'buildjet-2vcpu-ubuntu-2004' }}
+        if: ${{ matrix.settings.host == 'buildjet-4vcpu-ubuntu-2004' }}
       - name: tune windows network
         run: Disable-NetAdapterChecksumOffload -Name * -TcpIPv4 -UdpIPv4 -TcpIPv6 -UdpIPv6
         if: ${{ matrix.settings.host == 'windows-latest' }}
@@ -993,7 +783,7 @@ jobs:
     strategy:
       matrix:
         target: [web, nodejs]
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     steps:
       - uses: actions/cache@v2
         id: restore-build
@@ -1044,7 +834,7 @@ jobs:
 
   build-wasm-dev:
     needs: build
-    runs-on: buildjet-2vcpu-ubuntu-2004
+    runs-on: buildjet-4vcpu-ubuntu-2004
     steps:
       - uses: actions/cache@v2
         if: ${{needs.build.outputs.docsChange != 'docs only change'}}
@@ -1100,3 +890,217 @@ jobs:
         with:
           name: wasm-dev-binary
           path: packages/next-swc/crates/wasm/pkg-nodejs
+
+
+
+
+
+  # Jobs with secrets
+  testIntegration:
+    name: Test Integration
+    runs-on: ubuntu-latest
+    needs: [build, build-native-dev]
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_TEST_JOB: 1
+      TEST_TIMINGS_TOKEN: ${{ secrets.TEST_TIMINGS_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4, 5, 6]
+    steps:
+      - name: Setup node
+        uses: actions/setup-node@v2
+        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
+        with:
+          node-version: 14
+
+      - run: echo ${{needs.build.outputs.docsChange}}
+
+      # https://github.com/actions/virtual-environments/issues/1187
+      - name: tune linux network
+        run: sudo ethtool -K eth0 tx off rx off
+
+      - uses: actions/cache@v2
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+        id: restore-build
+        with:
+          path: ./*
+          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
+
+      - uses: actions/download-artifact@v2
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+        with:
+          name: next-swc-dev-binary
+          path: packages/next-swc/native
+
+      - run: npm i -g playwright-chromium@1.14.1 && npx playwright install-deps
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+
+      - run: xvfb-run node run-tests.js --timings -g ${{ matrix.group }}/6
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+
+      - name: Upload test trace
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: test-trace
+          if-no-files-found: ignore
+          retention-days: 2
+          path: |
+            test/traces
+testSafari:
+    name: Test Safari (production)
+    runs-on: ubuntu-latest
+    needs: [build, build-native-dev]
+    env:
+      BROWSERSTACK: true
+      BROWSER_NAME: 'safari'
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_TEST_MODE: 'start'
+      SKIP_LOCAL_SELENIUM_SERVER: true
+      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+    steps:
+      - name: Setup node
+        uses: actions/setup-node@v2
+        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
+        with:
+          node-version: 14
+
+      # https://github.com/actions/virtual-environments/issues/1187
+      - name: tune linux network
+        run: sudo ethtool -K eth0 tx off rx off
+
+      - uses: actions/cache@v2
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+        id: restore-build
+        with:
+          path: ./*
+          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
+
+      - uses: actions/download-artifact@v2
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+        with:
+          name: next-swc-dev-binary
+          path: packages/next-swc/native
+
+      # TODO: use macos runner so that we can use playwright to test against
+      # PRs instead of only running on canary?
+      - run: '[[ -z "$BROWSERSTACK_ACCESS_KEY" ]] && echo "Skipping for PR" || npm i -g browserstack-local@1.4.0'
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+
+      - run: '[[ -z "$BROWSERSTACK_ACCESS_KEY" ]] && echo "Skipping for PR" || node run-tests.js -c 1 test/integration/production/test/index.test.js test/e2e/basepath.test.ts'
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+
+  testSafariOld:
+    name: Test Safari 10.1 (nav)
+    runs-on: ubuntu-latest
+    needs: [build, testSafari, build-native-dev]
+    env:
+      BROWSERSTACK: true
+      LEGACY_SAFARI: true
+      BROWSER_NAME: 'safari'
+      NEXT_TELEMETRY_DISABLED: 1
+      SKIP_LOCAL_SELENIUM_SERVER: true
+      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+    steps:
+      - name: Setup node
+        uses: actions/setup-node@v2
+        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
+        with:
+          node-version: 14
+
+      # https://github.com/actions/virtual-environments/issues/1187
+      - name: tune linux network
+        run: sudo ethtool -K eth0 tx off rx off
+
+      - uses: actions/cache@v2
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+        id: restore-build
+        with:
+          path: ./*
+          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
+
+      - uses: actions/download-artifact@v2
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+        with:
+          name: next-swc-dev-binary
+          path: packages/next-swc/native
+
+      - run: '[[ -z "$BROWSERSTACK_ACCESS_KEY" ]] && echo "Skipping for PR" || npm i -g browserstack-local@1.4.0'
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+
+      - run: '[[ -z "$BROWSERSTACK_ACCESS_KEY" ]] && echo "Skipping for PR" || node run-tests.js test/integration/production-nav/test/index.test.js'
+        if: ${{needs.build.outputs.docsChange != 'docs only change'}}
+
+  publishRelease:
+    if: ${{ needs.build.outputs.isRelease == 'true' }}
+    name: Potentially publish release
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - build-wasm
+      - build-native
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN_ELEVATED }}
+    steps:
+      - name: Setup node
+        uses: actions/setup-node@v2
+        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
+        with:
+          node-version: 14
+
+      # https://github.com/actions/virtual-environments/issues/1187
+      - name: tune linux network
+        run: sudo ethtool -K eth0 tx off rx off
+
+      - uses: actions/cache@v2
+        id: restore-build
+        with:
+          path: ./*
+          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: next-swc-binaries
+          path: packages/next-swc/native
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: wasm-binaries
+          path: packages/next-swc/crates/wasm
+
+      - run: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+      - run: ./scripts/publish-native.js $GITHUB_REF
+      - run: ./scripts/publish-release.sh
+
+  releaseStats:
+    name: Release Stats
+    runs-on: ubuntu-latest
+    needs: [publishRelease, build-native-dev]
+    steps:
+      - name: Setup node
+        uses: actions/setup-node@v2
+        if: ${{ steps.docs-change.outputs.docsChange != 'docs only change' }}
+        with:
+          node-version: 14
+
+      - uses: actions/cache@v2
+        id: restore-build
+        with:
+          path: ./*
+          key: ${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: next-swc-dev-binary
+          path: packages/next-swc/native
+
+      - run: cp -r packages/next-swc/native .github/actions/next-stats-action/native
+
+      - run: ./scripts/release-stats.sh
+      - uses: ./.github/actions/next-stats-action
+        env:
+          PR_STATS_COMMENT_TOKEN: ${{ secrets.PR_STATS_COMMENT_TOKEN }}
